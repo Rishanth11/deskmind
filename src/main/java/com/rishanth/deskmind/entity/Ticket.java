@@ -51,6 +51,10 @@ public class Ticket {
     @JoinColumn(name = "customer_id", nullable = false)
     private User customer;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "agent_id")
+    private User agent;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime createdAt;

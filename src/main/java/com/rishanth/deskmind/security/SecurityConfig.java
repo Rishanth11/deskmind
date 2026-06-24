@@ -3,7 +3,7 @@ package com.rishanth.deskmind.security;
 import com.rishanth.deskmind.service.CustomUserDetailsService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.http.HttpMethod; // Added this import
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -41,8 +41,18 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // Corrected: Include the /api/ prefix to match your React requests
+                        // 1. MUST allow pre-flight CORS requests for protected endpoints
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
+                        // 2. Public auth endpoints
                         .requestMatchers("/api/auth/**", "/error").permitAll()
+
+                        // 3. SECURED: Agent/Admin specific endpoints
+                        .requestMatchers("/api/tickets/all").hasAnyRole("AGENT", "ADMIN")
+                        .requestMatchers("/api/tickets/*/assign").hasAnyRole("AGENT", "ADMIN")
+                        .requestMatchers("/api/tickets/*/merge/*").hasAnyRole("AGENT", "ADMIN")
+
+                        // 4. Everything else (like a Customer getting their own tickets) just needs a valid token
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

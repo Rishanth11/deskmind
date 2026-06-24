@@ -56,14 +56,30 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest request) {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
-        );
+        try {
+            // This is the line that crashes if the email/password is wrong
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(request.getEmail(), request.getPassword())
+            );
+        } catch (org.springframework.security.authentication.BadCredentialsException e) {
+            // Catch wrong passwords or missing emails gracefully!
+            System.out.println("❌ LOGIN FAILED: Bad credentials for email -> " + request.getEmail());
+            return org.springframework.http.ResponseEntity
+                    .status(org.springframework.http.HttpStatus.UNAUTHORIZED)
+                    .body("Invalid email or password");
+        } catch (Exception e) {
+            System.out.println("❌ LOGIN ERROR: " + e.getMessage());
+            return org.springframework.http.ResponseEntity
+                    .status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("An error occurred during authentication");
+        }
 
+        // If we survive the try-catch, the user is legit!
         User user = userRepository.findByEmail(request.getEmail()).orElseThrow();
         String jwtToken = jwtService.generateToken(user);
 
-        return ResponseEntity.ok(new AuthResponse(jwtToken));
+        System.out.println("✅ LOGIN SUCCESS: User " + user.getEmail() + " logged in as " + user.getRole().name());
+        return org.springframework.http.ResponseEntity.ok(new AuthResponse(jwtToken, user.getRole().name()));
     }
 
     @PostMapping("/forgot-password")

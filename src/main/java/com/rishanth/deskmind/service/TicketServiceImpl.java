@@ -2,8 +2,10 @@ package com.rishanth.deskmind.service;
 
 import com.rishanth.deskmind.dto.AiClassificationResult;
 import com.rishanth.deskmind.dto.TicketCreateRequest;
+import com.rishanth.deskmind.dto.TicketReplyResponse;
 import com.rishanth.deskmind.dto.TicketResponse;
 import com.rishanth.deskmind.entity.*;
+import com.rishanth.deskmind.repository.TicketReplyRepository; // Make sure to create this if you haven't!
 import com.rishanth.deskmind.repository.TicketRepository;
 import com.rishanth.deskmind.repository.UserRepository;
 import jakarta.transaction.Transactional;
@@ -11,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +27,7 @@ public class TicketServiceImpl implements TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final AIService aiService;
+    private final TicketReplyRepository replyRepository; // Needed for the merge function
 
     @Override
     @Transactional
@@ -31,22 +35,19 @@ public class TicketServiceImpl implements TicketService {
         User customer = userRepository.findByEmail(userEmail)
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        // 1. Initial Save (Default Status & Priority)
         Ticket ticket = Ticket.builder()
                 .ticketNumber(generateTicketNumber())
                 .title(request.getTitle())
                 .description(request.getDescription())
                 .status(TicketStatus.OPEN)
-                .priority(TicketPriority.P3) // Default
+                .priority(TicketPriority.P3)
                 .customer(customer)
                 .build();
 
         ticket = ticketRepository.save(ticket);
 
-        // 2. AI Classification Flow
         try {
             AiClassificationResult aiResult = aiService.classifyTicket(ticket.getTitle(), ticket.getDescription());
-
             if (aiResult != null) {
                 ticket.setCategory(TicketCategory.valueOf(aiResult.getCategory()));
                 ticket.setPriority(TicketPriority.valueOf(aiResult.getPriority()));
@@ -54,14 +55,12 @@ public class TicketServiceImpl implements TicketService {
                 ticket.setAiSuggestion(aiResult.getReply());
             }
         } catch (IllegalArgumentException | NullPointerException e) {
-            // Failsafe: If AI returns garbage enum values or crashes
             log.warn("AI Classification generated invalid data for Ticket {}. Applying defaults.", ticket.getTicketNumber());
             ticket.setCategory(null);
             ticket.setPriority(TicketPriority.P3);
             ticket.setAiSuggestion(null);
         }
 
-        // 3. Final Save & Return
         ticket = ticketRepository.save(ticket);
         return mapToResponse(ticket);
     }
@@ -71,8 +70,9 @@ public class TicketServiceImpl implements TicketService {
         Ticket ticket = ticketRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Ticket not found"));
 
-        // Authorization check: Ensure customer owns the ticket
-        if (!ticket.getCustomer().getEmail().equals(userEmail)) {
+        // Allow access if the user is the customer OR an agent
+        User user = userRepository.findByEmail(userEmail).orElseThrow();
+        if (user.getRole() == Role.CUSTOMER && !ticket.getCustomer().getEmail().equals(userEmail)) {
             throw new RuntimeException("Access Denied: You do not own this ticket.");
         }
 
@@ -90,16 +90,82 @@ public class TicketServiceImpl implements TicketService {
                 .collect(Collectors.toList());
     }
 
+    // --- NEW: AGENT MODULE METHODS ---
+
+    @Override
+    public List<TicketResponse> getAllTickets() {
+        return ticketRepository.findAll() // Replace with findAllByOrderByCreatedAtDesc() if you added it to repo
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public TicketResponse assignTicketToAgent(Long ticketId, String agentEmail) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found"));
+
+        User agent = userRepository.findByEmail(agentEmail)
+                .orElseThrow(() -> new RuntimeException("Agent not found"));
+
+        ticket.setAgent(agent);
+        ticket.setStatus(TicketStatus.IN_PROGRESS);
+
+        ticket = ticketRepository.save(ticket);
+        return mapToResponse(ticket);
+    }
+
+    @Override
+    @Transactional
+    public TicketResponse mergeTickets(Long sourceId, Long targetId, String agentEmail) {
+        Ticket source = ticketRepository.findById(sourceId).orElseThrow(() -> new RuntimeException("Source ticket not found"));
+        Ticket target = ticketRepository.findById(targetId).orElseThrow(() -> new RuntimeException("Target ticket not found"));
+        User agent = userRepository.findByEmail(agentEmail).orElseThrow(() -> new RuntimeException("Agent not found"));
+
+        // Move all replies from source to target
+        List<TicketReply> sourceReplies = replyRepository.findByTicketIdOrderByCreatedAtAsc(sourceId);
+        for (TicketReply reply : sourceReplies) {
+            reply.setTicket(target);
+        }
+        replyRepository.saveAll(sourceReplies);
+
+        // Add System Note to Target
+        TicketReply targetNote = new TicketReply();
+        targetNote.setTicket(target);
+        targetNote.setSender(agent);
+        targetNote.setInternal(true);
+        targetNote.setMessage("System: Merged replies from ticket " + source.getTicketNumber());
+        replyRepository.save(targetNote);
+
+        // Close Source Ticket with Note
+        TicketReply sourceNote = new TicketReply();
+        sourceNote.setTicket(source);
+        sourceNote.setSender(agent);
+        sourceNote.setInternal(false);
+        sourceNote.setMessage("System: This ticket has been merged into " + target.getTicketNumber() + " and closed.");
+        replyRepository.save(sourceNote);
+
+        source.setStatus(TicketStatus.CLOSED);
+        ticketRepository.save(source);
+
+        return mapToResponse(target);
+    }
+
     // --- Helper Methods ---
 
     private String generateTicketNumber() {
-        // Format: TKT-2026-XXXXXX
         String year = String.valueOf(Year.now().getValue());
         String randomStr = UUID.randomUUID().toString().substring(0, 6).toUpperCase();
         return "TKT-" + year + "-" + randomStr;
     }
 
     private TicketResponse mapToResponse(Ticket ticket) {
+        LocalDateTime deadline = calculateSlaDeadline(ticket.getPriority(), ticket.getCreatedAt());
+        boolean isBreached = ticket.getStatus() != TicketStatus.RESOLVED
+                && ticket.getStatus() != TicketStatus.CLOSED
+                && LocalDateTime.now().isAfter(deadline);
+
         return TicketResponse.builder()
                 .id(ticket.getId())
                 .ticketNumber(ticket.getTicketNumber())
@@ -111,8 +177,79 @@ public class TicketServiceImpl implements TicketService {
                 .aiSuggestion(ticket.getAiSuggestion())
                 .aiConfidence(ticket.getAiConfidence())
                 .customerName(ticket.getCustomer().getName())
+                // Agent mapping
+                .agentId(ticket.getAgent() != null ? ticket.getAgent().getId() : null)
+                .agentName(ticket.getAgent() != null ? ticket.getAgent().getName() : "Unassigned")
+                // SLA mapping
+                .slaDeadline(deadline)
+                .slaBreached(isBreached)
                 .createdAt(ticket.getCreatedAt())
                 .updatedAt(ticket.getUpdatedAt())
+                .build();
+    }
+
+    private LocalDateTime calculateSlaDeadline(TicketPriority priority, LocalDateTime createdAt) {
+        if (createdAt == null) return LocalDateTime.now(); // Failsafe
+
+        return switch (priority) {
+            case P1 -> createdAt.plusHours(1);
+            case P2 -> createdAt.plusHours(4);
+            case P3 -> createdAt.plusHours(24);
+            case P4 -> createdAt.plusHours(72);
+            default -> createdAt.plusHours(24);
+        };
+    }
+
+    // ==========================================
+    // CHAT & REPLY SYSTEM LOGIC
+    // ==========================================
+
+    @Override
+    public List<TicketReplyResponse> getReplies(Long ticketId, User requestingUser) {
+        List<TicketReply> replies = replyRepository.findByTicketIdOrderByCreatedAtAsc(ticketId);
+
+        return replies.stream()
+                .filter(reply -> {
+                    // Customers cannot see internal notes. Agents and Admins can see everything.
+                    if (requestingUser.getRole() == Role.CUSTOMER) {
+                        return !reply.isInternal();
+                    }
+                    return true;
+                })
+                .map(this::mapReplyToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public TicketReplyResponse addReply(Long ticketId, String userEmail, String message, boolean isInternal) {
+        Ticket ticket = ticketRepository.findById(ticketId).orElseThrow();
+        User sender = userRepository.findByEmail(userEmail).orElseThrow();
+
+        TicketReply reply = new TicketReply();
+        reply.setTicket(ticket);
+        reply.setSender(sender);
+        reply.setMessage(message);
+        reply.setInternal(isInternal);
+        reply = replyRepository.save(reply);
+
+        // Auto-Status Logic: If an agent sends a public reply to an OPEN ticket, move it to IN_PROGRESS
+        if (sender.getRole() == Role.AGENT && ticket.getStatus() == TicketStatus.OPEN && !isInternal) {
+            ticket.setStatus(TicketStatus.IN_PROGRESS);
+            ticketRepository.save(ticket);
+        }
+
+        return mapReplyToResponse(reply);
+    }
+
+    // Helper method to convert the Entity to the DTO
+    private TicketReplyResponse mapReplyToResponse(TicketReply reply) {
+        return TicketReplyResponse.builder()
+                .id(reply.getId())
+                .senderName(reply.getSender().getName())
+                .message(reply.getMessage())
+                .internal(reply.isInternal())
+                .createdAt(reply.getCreatedAt())
                 .build();
     }
 }

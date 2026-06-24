@@ -20,7 +20,11 @@ public class TicketResponse {
     private TicketStatus status;
     private String aiSuggestion;
     private Integer aiConfidence;
-    private String customerName; // Don't expose the whole User object!
+    private String customerName;
+    private Long agentId;
+    private String agentName;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
+    private LocalDateTime slaDeadline;
+    private boolean slaBreached;
 }
