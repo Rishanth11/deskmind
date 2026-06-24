@@ -41,12 +41,8 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 .authorizeHttpRequests(auth -> auth
-                        // 1. Allow Chrome's secret CORS preflight requests
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                        // 2. Allow ALL /auth/ endpoints (login, register, forgot-password) and errors
-                        .requestMatchers("/auth/**", "/error").permitAll()
-
+                        // Corrected: Include the /api/ prefix to match your React requests
+                        .requestMatchers("/api/auth/**", "/error").permitAll()
                         .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
