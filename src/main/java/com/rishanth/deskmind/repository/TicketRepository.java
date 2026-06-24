@@ -4,6 +4,7 @@ import com.rishanth.deskmind.entity.Ticket;
 import com.rishanth.deskmind.entity.TicketCategory;
 import com.rishanth.deskmind.entity.TicketPriority;
 import com.rishanth.deskmind.entity.TicketStatus;
+import com.rishanth.deskmind.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -17,9 +18,9 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     List<Ticket> findByCategory(TicketCategory category);
     List<Ticket> findByPriority(TicketPriority priority);
 
-    // NEW: For the Agent Dashboard (fetching the global queue)
     List<Ticket> findAllByOrderByCreatedAtDesc();
-
-    // NEW: For the Auto-Close Scheduler (finding old, resolved tickets)
     List<Ticket> findByStatusAndUpdatedAtBefore(TicketStatus status, LocalDateTime date);
+
+    // This is the magic Spring Data method your RoutingService is looking for
+    long countByAgentAndStatusIn(User agent, List<TicketStatus> statuses);
 }

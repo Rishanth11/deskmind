@@ -1,36 +1,91 @@
 package com.rishanth.deskmind.controller;
 
-import com.rishanth.deskmind.dto.RoleUpdateRequest;
-import com.rishanth.deskmind.entity.Role;
-import com.rishanth.deskmind.entity.User;
-import com.rishanth.deskmind.repository.UserRepository;
+import com.rishanth.deskmind.entity.*;
+import com.rishanth.deskmind.repository.*;
+import com.rishanth.deskmind.service.AuditService;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.security.Principal;
+import java.util.List;
+
 @RestController
-@RequestMapping("/admin")
-@PreAuthorize("hasRole('ADMIN')") // Only ADMINs can access routes in this controller
+@RequestMapping("/api/admin")
+@PreAuthorize("hasRole('ADMIN')") // Secures the entire controller
+@RequiredArgsConstructor
 public class AdminController {
 
     private final UserRepository userRepository;
+    private final TeamRepository teamRepository;
+    private final SlaConfigRepository slaConfigRepository;
+    private final AuditLogRepository auditLogRepository;
+    private final AuditService auditService;
 
-    public AdminController(UserRepository userRepository) {
-        this.userRepository = userRepository;
+    // --- SLA Management ---
+    @PostMapping("/sla")
+    public ResponseEntity<SlaConfig> configureSla(@RequestBody SlaConfig config, Principal principal) {
+        SlaConfig existing = slaConfigRepository.findByPriority(config.getPriority());
+        if (existing != null) {
+            existing.setDeadlineHours(config.getDeadlineHours());
+            config = slaConfigRepository.save(existing);
+        } else {
+            config = slaConfigRepository.save(config);
+        }
+
+        auditService.logAction("SLA_UPDATED", "SlaConfig", config.getId(), principal.getName(),
+                "Updated " + config.getPriority() + " to " + config.getDeadlineHours() + " hours");
+        return ResponseEntity.ok(config);
     }
 
-    @PutMapping("/assign-role/{userId}")
-    public ResponseEntity<?> assignRole(@PathVariable Long userId, @RequestBody RoleUpdateRequest request) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found with ID: " + userId));
+    // --- Team & Routing Management ---
+    @PostMapping("/teams")
+    public ResponseEntity<Team> createTeam(@RequestBody Team team, Principal principal) {
+        Team savedTeam = teamRepository.save(team);
+        auditService.logAction("TEAM_CREATED", "Team", savedTeam.getId(), principal.getName(), "Created team: " + team.getName());
+        return ResponseEntity.ok(savedTeam);
+    }
 
-        try {
-            Role newRole = Role.valueOf(request.getRole().toUpperCase());
-            user.setRole(newRole);
-            userRepository.save(user);
-            return ResponseEntity.ok("Role updated successfully to " + newRole);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body("Invalid role provided. Accepted values: CUSTOMER, AGENT, MANAGER, ADMIN.");
-        }
+    @PostMapping("/teams/{teamId}/agents/{userId}")
+    public ResponseEntity<Team> addAgentToTeam(@PathVariable Long teamId, @PathVariable Long userId, Principal principal) {
+        Team team = teamRepository.findById(teamId).orElseThrow();
+        User agent = userRepository.findById(userId).orElseThrow();
+
+        team.getAgents().add(agent);
+        team = teamRepository.save(team);
+
+        auditService.logAction("AGENT_ASSIGNED", "Team", team.getId(), principal.getName(),
+                "Added " + agent.getEmail() + " to team " + team.getName());
+        return ResponseEntity.ok(team);
+    }
+
+    // --- User Roles ---
+    @PutMapping("/users/{userId}/role")
+    public ResponseEntity<User> changeUserRole(@PathVariable Long userId, @RequestParam Role role, Principal principal) {
+        User user = userRepository.findById(userId).orElseThrow();
+        String oldRole = user.getRole().name();
+        user.setRole(role);
+        user = userRepository.save(user);
+
+        auditService.logAction("ROLE_CHANGED", "User", user.getId(), principal.getName(),
+                "Changed role from " + oldRole + " to " + role.name());
+        return ResponseEntity.ok(user);
+    }
+
+    // --- Audit Logs ---
+    @GetMapping("/audit-logs")
+    public ResponseEntity<List<AuditLog>> getAuditLogs() {
+        return ResponseEntity.ok(auditLogRepository.findAllByOrderByTimestampDesc());
+    }
+
+    @GetMapping("/teams")
+    public ResponseEntity<List<Team>> getAllTeams() {
+        return ResponseEntity.ok(teamRepository.findAll());
+    }
+
+    @GetMapping("/slas")
+    public ResponseEntity<List<SlaConfig>> getAllSlas() {
+        return ResponseEntity.ok(slaConfigRepository.findAll());
     }
 }

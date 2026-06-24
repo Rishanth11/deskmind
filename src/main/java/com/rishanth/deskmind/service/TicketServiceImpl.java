@@ -5,6 +5,7 @@ import com.rishanth.deskmind.dto.TicketCreateRequest;
 import com.rishanth.deskmind.dto.TicketReplyResponse;
 import com.rishanth.deskmind.dto.TicketResponse;
 import com.rishanth.deskmind.entity.*;
+import com.rishanth.deskmind.repository.SlaConfigRepository;
 import com.rishanth.deskmind.repository.TicketReplyRepository; // Make sure to create this if you haven't!
 import com.rishanth.deskmind.repository.TicketRepository;
 import com.rishanth.deskmind.repository.UserRepository;
@@ -27,7 +28,10 @@ public class TicketServiceImpl implements TicketService {
     private final TicketRepository ticketRepository;
     private final UserRepository userRepository;
     private final AIService aiService;
-    private final TicketReplyRepository replyRepository; // Needed for the merge function
+    private final TicketReplyRepository replyRepository;
+    private final RoutingService routingService;
+    private final SlaConfigRepository slaConfigRepository;
+    private final AuditService auditService;
 
     @Override
     @Transactional
@@ -61,8 +65,16 @@ public class TicketServiceImpl implements TicketService {
             ticket.setAiSuggestion(null);
         }
 
+        User assignedAgent = routingService.assignToBestAgent(ticket.getCategory());
+        if (assignedAgent != null) {
+            ticket.setAgent(assignedAgent);
+            auditService.logAction("TICKET_ROUTED", "Ticket", ticket.getId(), "SYSTEM",
+                    "Routed to " + assignedAgent.getEmail() + " via load balancer");
+        }
+
         ticket = ticketRepository.save(ticket);
         return mapToResponse(ticket);
+
     }
 
     @Override
@@ -189,15 +201,23 @@ public class TicketServiceImpl implements TicketService {
     }
 
     private LocalDateTime calculateSlaDeadline(TicketPriority priority, LocalDateTime createdAt) {
-        if (createdAt == null) return LocalDateTime.now(); // Failsafe
+        if (createdAt == null) return LocalDateTime.now();
 
-        return switch (priority) {
-            case P1 -> createdAt.plusHours(1);
-            case P2 -> createdAt.plusHours(4);
-            case P3 -> createdAt.plusHours(24);
-            case P4 -> createdAt.plusHours(72);
-            default -> createdAt.plusHours(24);
-        };
+        SlaConfig config = slaConfigRepository.findByPriority(priority);
+        // Fallback to default hardcoded values if the Admin hasn't configured them in the DB yet
+        int hours = 24;
+        if (config != null) {
+            hours = config.getDeadlineHours();
+        } else {
+            hours = switch (priority) {
+                case P1 -> 1;
+                case P2 -> 4;
+                case P3 -> 24;
+                case P4 -> 72;
+                default -> 24;
+            };
+        }
+        return createdAt.plusHours(hours);
     }
 
     // ==========================================
