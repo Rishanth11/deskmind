@@ -47,10 +47,10 @@ public class SecurityConfig {
                         // 2. Public auth endpoints
                         .requestMatchers("/api/auth/**", "/error").permitAll()
 
-                        // 3. SECURED: Agent/Admin specific endpoints
-                        .requestMatchers("/api/tickets/all").hasAnyRole("AGENT", "ADMIN")
-                        .requestMatchers("/api/tickets/*/assign").hasAnyRole("AGENT", "ADMIN")
-                        .requestMatchers("/api/tickets/*/merge/*").hasAnyRole("AGENT", "ADMIN")
+                        // 3. SECURED: Agent/Admin/Manager specific endpoints
+                        .requestMatchers("/api/tickets/all").hasAnyRole("AGENT", "ADMIN", "MANAGER")
+                        .requestMatchers("/api/tickets/*/assign").hasAnyRole("AGENT", "ADMIN", "MANAGER")
+                        .requestMatchers("/api/tickets/*/merge/*").hasAnyRole("AGENT", "ADMIN", "MANAGER")
 
                         // 4. Everything else (like a Customer getting their own tickets) just needs a valid token
                         .anyRequest().authenticated()

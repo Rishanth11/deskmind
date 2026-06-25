@@ -4,11 +4,13 @@ import com.rishanth.deskmind.dto.ReplyRequest;
 import com.rishanth.deskmind.dto.TicketCreateRequest;
 import com.rishanth.deskmind.dto.TicketReplyResponse;
 import com.rishanth.deskmind.dto.TicketResponse;
+import com.rishanth.deskmind.entity.TicketStatus;
 import com.rishanth.deskmind.entity.User;
 import com.rishanth.deskmind.repository.UserRepository;
 import com.rishanth.deskmind.service.TicketService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -82,5 +84,14 @@ public class TicketController {
                 request.getMessage(),
                 request.isInternal()
         ));
+    }
+
+    @PutMapping("/{id}/status")
+    @PreAuthorize("hasAnyRole('AGENT', 'ADMIN', 'MANAGER')")
+    public ResponseEntity<TicketResponse> updateStatus(
+            @PathVariable Long id,
+            @RequestParam TicketStatus status,
+            Principal principal) {
+        return ResponseEntity.ok(ticketService.updateStatus(id, status, principal.getName()));
     }
 }

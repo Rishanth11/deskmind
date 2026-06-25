@@ -67,4 +67,7 @@ public class User implements UserDetails {
     @Override
     public boolean isEnabled() { return this.isActive; }
 
+    @Column(name = "is_available", nullable = false)
+    private boolean isAvailable = true;
+
 }

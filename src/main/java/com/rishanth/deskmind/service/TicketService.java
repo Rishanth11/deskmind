@@ -3,6 +3,7 @@ package com.rishanth.deskmind.service;
 import com.rishanth.deskmind.dto.TicketCreateRequest;
 import com.rishanth.deskmind.dto.TicketReplyResponse;
 import com.rishanth.deskmind.dto.TicketResponse;
+import com.rishanth.deskmind.entity.TicketStatus;
 import com.rishanth.deskmind.entity.User;
 
 import java.util.List;
@@ -18,4 +19,6 @@ public interface TicketService {
 
     List<TicketReplyResponse> getReplies(Long ticketId, User requestingUser);
     TicketReplyResponse addReply(Long ticketId, String userEmail, String message, boolean isInternal);
+
+    TicketResponse updateStatus(Long ticketId, TicketStatus newStatus, String performedBy);
 }

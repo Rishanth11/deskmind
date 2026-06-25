@@ -272,4 +272,28 @@ public class TicketServiceImpl implements TicketService {
                 .createdAt(reply.getCreatedAt())
                 .build();
     }
+
+    @Override
+    @Transactional
+    public TicketResponse updateStatus(Long ticketId, TicketStatus newStatus, String performedBy) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found"));
+
+        TicketStatus oldStatus = ticket.getStatus();
+        ticket.setStatus(newStatus);
+        ticket.setUpdatedAt(LocalDateTime.now());
+
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        // Log the action to the Audit Ledger
+        auditService.logAction(
+                "STATUS_CHANGED",
+                "Ticket",
+                ticket.getId(),
+                performedBy,
+                "Changed status from " + oldStatus + " to " + newStatus
+        );
+
+        return mapToResponse(savedTicket);
+    }
 }
