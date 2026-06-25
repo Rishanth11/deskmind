@@ -12,7 +12,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
 
     // NEW: The Upgraded Smart Load Balancer (Filters out offline agents)
     @Query(value = "SELECT u.* FROM users u " +
-            "JOIN teams t ON u.team_id = t.id " +
+            "JOIN team_agents ta ON u.id = ta.user_id " +
+            "JOIN teams t ON ta.team_id = t.id " +
             "LEFT JOIN tickets tk ON u.id = tk.agent_id AND tk.status = 'IN_PROGRESS' " +
             "WHERE t.handles_category = :category AND u.role = 'AGENT' AND u.is_available = true " +
             "GROUP BY u.id " +
