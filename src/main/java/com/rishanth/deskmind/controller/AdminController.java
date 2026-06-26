@@ -41,10 +41,15 @@ public class AdminController {
 
     // --- Team & Routing Management ---
     @PostMapping("/teams")
-    public ResponseEntity<Team> createTeam(@RequestBody Team team, Principal principal) {
-        Team savedTeam = teamRepository.save(team);
-        auditService.logAction("TEAM_CREATED", "Team", savedTeam.getId(), principal.getName(), "Created team: " + team.getName());
-        return ResponseEntity.ok(savedTeam);
+    public ResponseEntity<?> createTeam(@RequestBody Team team, Principal principal) {
+        try {
+            Team savedTeam = teamRepository.save(team);
+            auditService.logAction("TEAM_CREATED", "Team", savedTeam.getId(), principal.getName(), "Created team: " + team.getName());
+            return ResponseEntity.ok(savedTeam);
+        } catch (Exception e) {
+            e.printStackTrace(); // 🚨 THIS WILL FORCE THE ERROR INTO YOUR RENDER LOGS
+            return ResponseEntity.status(500).body("Error: " + e.getMessage());
+        }
     }
 
     @PostMapping("/teams/{teamId}/agents/{userId}")
