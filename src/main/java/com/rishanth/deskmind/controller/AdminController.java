@@ -92,27 +92,36 @@ public class AdminController {
 
     @Transactional
     @GetMapping("/teams")
-    public ResponseEntity<List<TeamDTO>> getAllTeams() {
+    public ResponseEntity<?> getAllTeams() {
+        try {
+            List<Team> teams = teamRepository.findAll();
 
-        List<Team> teams = teamRepository.findAll();
+            List<TeamDTO> teamDTOs = teams.stream().map(team -> {
 
-        List<TeamDTO> teamDTOs = teams.stream().map(team -> {
+                // 🚨 THE FIX: Package the actual Agent Name and Email to send to the frontend!
+                List<AgentDTO> agentList = team.getAgents().stream()
+                        .map(agent -> new AgentDTO(agent.getId(), agent.getName(), agent.getEmail()))
+                        .collect(Collectors.toList());
 
-            List<Long> agentIds = team.getAgents().stream()
-                    .map(User::getId)
-                    .collect(Collectors.toList());
+                String categoryName = (team.getHandlesCategory() != null)
+                        ? team.getHandlesCategory().name()
+                        : "UNASSIGNED";
 
-            return new TeamDTO(
-                    team.getId(),
-                    team.getName(),
-                    // FIXED: Added .name() to convert the Enum to a String!
-                    team.getHandlesCategory().name(),
-                    agentIds
-            );
+                return new TeamDTO(
+                        team.getId(),
+                        team.getName(),
+                        categoryName,
+                        agentList // Pass the new list here
+                );
 
-        }).collect(Collectors.toList());
+            }).collect(Collectors.toList());
 
-        return ResponseEntity.ok(teamDTOs);
+            return ResponseEntity.ok(teamDTOs);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return ResponseEntity.status(500).body("BACKEND CRASH REASON: " + e.getMessage());
+        }
     }
 
     @GetMapping("/slas")
