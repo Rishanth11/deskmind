@@ -65,7 +65,14 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+
+        // FIXED: Added your Vercel production URLs to the VIP list
+        configuration.setAllowedOrigins(List.of(
+                "https://deskmindai.vercel.app",         // Your current live frontend
+                "https://deskmind-frontend.vercel.app",  // Your other Vercel alias (just in case!)
+                "http://localhost:5173"                  // Keep this so local testing still works
+        ));
+
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type"));
         configuration.setAllowCredentials(true);
