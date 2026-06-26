@@ -9,6 +9,7 @@ import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
@@ -26,6 +27,7 @@ public class AdminController {
     private final SlaConfigRepository slaConfigRepository;
     private final AuditLogRepository auditLogRepository;
     private final AuditService auditService;
+    private final PasswordEncoder passwordEncoder;
 
     // --- SLA Management ---
     @PostMapping("/sla")
@@ -123,12 +125,15 @@ public class AdminController {
         User newStaff = new User();
         newStaff.setName(request.getName());
         newStaff.setEmail(request.getEmail());
-        // In a real app, hash this! newStaff.setPassword(passwordEncoder.encode(request.getPassword()));
-        newStaff.setPassword(request.getPassword());
+
+        // FIXED: Now we are actively hashing the password before saving!
+        newStaff.setPassword(passwordEncoder.encode(request.getPassword()));
+
         newStaff.setRole(request.getRole());
 
         User savedUser = userRepository.save(newStaff);
         auditService.logAction("STAFF_CREATED", "User", savedUser.getId(), principal.getName(), "Created " + savedUser.getRole() + ": " + savedUser.getEmail());
+
         return ResponseEntity.ok(savedUser);
     }
 
