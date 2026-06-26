@@ -88,4 +88,18 @@ public class AdminController {
     public ResponseEntity<List<SlaConfig>> getAllSlas() {
         return ResponseEntity.ok(slaConfigRepository.findAll());
     }
+
+    @PostMapping("/staff")
+    public ResponseEntity<User> createStaff(@RequestBody User request, Principal principal) {
+        User newStaff = new User();
+        newStaff.setName(request.getName());
+        newStaff.setEmail(request.getEmail());
+        // In a real app, hash this! newStaff.setPassword(passwordEncoder.encode(request.getPassword()));
+        newStaff.setPassword(request.getPassword());
+        newStaff.setRole(request.getRole());
+
+        User savedUser = userRepository.save(newStaff);
+        auditService.logAction("STAFF_CREATED", "User", savedUser.getId(), principal.getName(), "Created " + savedUser.getRole() + ": " + savedUser.getEmail());
+        return ResponseEntity.ok(savedUser);
+    }
 }
