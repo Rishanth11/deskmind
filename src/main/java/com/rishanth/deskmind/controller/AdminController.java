@@ -1,5 +1,6 @@
 package com.rishanth.deskmind.controller;
 
+import com.rishanth.deskmind.dto.TeamDTO;
 import com.rishanth.deskmind.entity.*;
 import com.rishanth.deskmind.repository.*;
 import com.rishanth.deskmind.service.AuditService;
@@ -11,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -87,8 +89,27 @@ public class AdminController {
 
     @Transactional
     @GetMapping("/teams")
-    public ResponseEntity<List<Team>> getAllTeams() {
-        return ResponseEntity.ok(teamRepository.findAll());
+    public ResponseEntity<List<TeamDTO>> getAllTeams() {
+
+        List<Team> teams = teamRepository.findAll();
+
+        List<TeamDTO> teamDTOs = teams.stream().map(team -> {
+
+            List<Long> agentIds = team.getAgents().stream()
+                    .map(User::getId)
+                    .collect(Collectors.toList());
+
+            return new TeamDTO(
+                    team.getId(),
+                    team.getName(),
+                    // FIXED: Added .name() to convert the Enum to a String!
+                    team.getHandlesCategory().name(),
+                    agentIds
+            );
+
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(teamDTOs);
     }
 
     @GetMapping("/slas")
