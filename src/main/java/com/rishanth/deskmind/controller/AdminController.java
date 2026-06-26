@@ -3,6 +3,7 @@ package com.rishanth.deskmind.controller;
 import com.rishanth.deskmind.entity.*;
 import com.rishanth.deskmind.repository.*;
 import com.rishanth.deskmind.service.AuditService;
+import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -84,6 +85,7 @@ public class AdminController {
         return ResponseEntity.ok(auditLogRepository.findAllByOrderByTimestampDesc());
     }
 
+    @Transactional
     @GetMapping("/teams")
     public ResponseEntity<List<Team>> getAllTeams() {
         return ResponseEntity.ok(teamRepository.findAll());
