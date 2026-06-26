@@ -1,10 +1,12 @@
 package com.rishanth.deskmind.repository;
 
+import com.rishanth.deskmind.entity.Role;
 import com.rishanth.deskmind.entity.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -19,4 +21,6 @@ public interface UserRepository extends JpaRepository<User, Long> {
             "GROUP BY u.id " +
             "ORDER BY COUNT(tk.id) ASC LIMIT 1", nativeQuery = true)
     Optional<User> findAvailableAgentWithLeastTickets(@Param("category") String category);
+
+    List<User> findByRole(Role role);
 }

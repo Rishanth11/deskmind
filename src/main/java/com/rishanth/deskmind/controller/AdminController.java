@@ -1,5 +1,6 @@
 package com.rishanth.deskmind.controller;
 
+import com.rishanth.deskmind.dto.AgentDTO;
 import com.rishanth.deskmind.dto.TeamDTO;
 import com.rishanth.deskmind.entity.*;
 import com.rishanth.deskmind.repository.*;
@@ -129,5 +130,16 @@ public class AdminController {
         User savedUser = userRepository.save(newStaff);
         auditService.logAction("STAFF_CREATED", "User", savedUser.getId(), principal.getName(), "Created " + savedUser.getRole() + ": " + savedUser.getEmail());
         return ResponseEntity.ok(savedUser);
+    }
+
+    @GetMapping("/agents")
+    public ResponseEntity<List<AgentDTO>> getAvailableAgents() {
+        List<User> agents = userRepository.findByRole(Role.AGENT);
+
+        List<AgentDTO> dtos = agents.stream()
+                .map(agent -> new AgentDTO(agent.getId(), agent.getName(), agent.getEmail()))
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(dtos);
     }
 }
