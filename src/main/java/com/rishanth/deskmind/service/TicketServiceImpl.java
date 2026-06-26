@@ -51,7 +51,10 @@ public class TicketServiceImpl implements TicketService {
         ticket = ticketRepository.save(ticket);
 
         try {
+            log.info("Calling AI for ticket: {}", ticket.getTicketNumber());
             AiClassificationResult aiResult = aiService.classifyTicket(ticket.getTitle(), ticket.getDescription());
+            log.info("AI returned: category={}, priority={}, confidence={}",
+                        aiResult.getCategory(), aiResult.getPriority(), aiResult.getConfidence());
             if (aiResult != null) {
                 ticket.setCategory(TicketCategory.valueOf(aiResult.getCategory()));
                 ticket.setPriority(TicketPriority.valueOf(aiResult.getPriority()));
@@ -59,6 +62,7 @@ public class TicketServiceImpl implements TicketService {
                 ticket.setAiSuggestion(aiResult.getReply());
             }
         } catch (IllegalArgumentException | NullPointerException e) {
+            log.error("AI result mapping failed: {}", e.getMessage());
             log.warn("AI Classification generated invalid data for Ticket {}. Applying defaults.", ticket.getTicketNumber());
             ticket.setCategory(null);
             ticket.setPriority(TicketPriority.P3);
