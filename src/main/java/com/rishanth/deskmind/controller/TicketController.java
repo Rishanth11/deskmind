@@ -48,8 +48,8 @@ public class TicketController {
     // ==========================================
 
     @GetMapping("/all")
+    @PreAuthorize("hasAnyRole('ADMIN', 'MANAGER')")
     public ResponseEntity<List<TicketResponse>> getAllTickets() {
-        // In a production app, you would add @PreAuthorize("hasRole('AGENT')") here
         return ResponseEntity.ok(ticketService.getAllTickets());
     }
 
@@ -93,5 +93,11 @@ public class TicketController {
             @RequestParam TicketStatus status,
             Principal principal) {
         return ResponseEntity.ok(ticketService.updateStatus(id, status, principal.getName()));
+    }
+
+    @GetMapping("/agent")
+    @PreAuthorize("hasAnyRole('AGENT')")
+    public ResponseEntity<List<TicketResponse>> getAgentTickets(Principal principal) {
+        return ResponseEntity.ok(ticketService.getAgentTickets(principal.getName()));
     }
 }

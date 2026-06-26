@@ -21,4 +21,6 @@ public interface TicketService {
     TicketReplyResponse addReply(Long ticketId, String userEmail, String message, boolean isInternal);
 
     TicketResponse updateStatus(Long ticketId, TicketStatus newStatus, String performedBy);
+
+    List<TicketResponse> getAgentTickets(String agentEmail);
 }

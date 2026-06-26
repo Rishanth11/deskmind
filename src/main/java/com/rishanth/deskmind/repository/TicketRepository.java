@@ -51,4 +51,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
     // Analytics: Agent Performance
     @Query(value = "SELECT u.name as agentName, COUNT(t.id) as ticketsHandled FROM users u JOIN tickets t ON u.id = t.agent_id WHERE t.status = 'RESOLVED' GROUP BY u.id", nativeQuery = true)
     List<AnalyticsResponse.AgentPerformance> getAgentPerformance();
+
+    List<Ticket> findByAgentIdOrderByCreatedAtDesc(Long agentId);
 }

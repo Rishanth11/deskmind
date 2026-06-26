@@ -110,7 +110,7 @@ public class TicketServiceImpl implements TicketService {
 
     @Override
     public List<TicketResponse> getAllTickets() {
-        return ticketRepository.findAll() // Replace with findAllByOrderByCreatedAtDesc() if you added it to repo
+        return ticketRepository.findAllByOrderByCreatedAtDesc()
                 .stream()
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
@@ -299,5 +299,16 @@ public class TicketServiceImpl implements TicketService {
         );
 
         return mapToResponse(savedTicket);
+    }
+
+    @Override
+    public List<TicketResponse> getAgentTickets(String agentEmail) {
+        User agent = userRepository.findByEmail(agentEmail)
+                .orElseThrow(() -> new RuntimeException("Agent not found"));
+
+        return ticketRepository.findByAgentIdOrderByCreatedAtDesc(agent.getId())
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
     }
 }
