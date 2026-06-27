@@ -235,4 +235,29 @@ public class AdminController {
 
         return ResponseEntity.ok(Map.of("message", "Agent removed from team successfully"));
     }
+
+    // 5. Move Agent directly from one team to another
+    @Transactional
+    @PutMapping("/teams/{oldTeamId}/agents/{agentId}/move/{newTeamId}")
+    public ResponseEntity<?> moveAgentToTeam(
+            @PathVariable Long oldTeamId,
+            @PathVariable Long agentId,
+            @PathVariable Long newTeamId) {
+
+        Team oldTeam = teamRepository.findById(oldTeamId)
+                .orElseThrow(() -> new RuntimeException("Old team not found"));
+        Team newTeam = teamRepository.findById(newTeamId)
+                .orElseThrow(() -> new RuntimeException("New team not found"));
+        User agent = userRepository.findById(agentId)
+                .orElseThrow(() -> new RuntimeException("Agent not found"));
+
+        // Remove from old, add to new
+        oldTeam.getAgents().remove(agent);
+        newTeam.getAgents().add(agent);
+
+        teamRepository.save(oldTeam);
+        teamRepository.save(newTeam);
+
+        return ResponseEntity.ok(Map.of("message", "Agent moved successfully"));
+    }
 }
