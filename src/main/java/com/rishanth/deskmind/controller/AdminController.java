@@ -13,7 +13,9 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.security.Principal;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
@@ -155,5 +157,82 @@ public class AdminController {
                 .collect(Collectors.toList());
 
         return ResponseEntity.ok(dtos);
+    }
+
+    // ==========================================
+    // NEW: STAFF MANAGEMENT ENDPOINTS
+    // ==========================================
+
+    // 1. Fetch all Staff (Agents + Managers)
+    @GetMapping("/staff/all")
+    public ResponseEntity<?> getAllStaffDetails() {
+        List<User> allStaff = userRepository.findAll().stream()
+                .filter(u -> u.getRole() == Role.AGENT || u.getRole() == Role.MANAGER)
+                .collect(Collectors.toList());
+
+        // We reuse your AgentDTO concept here to send safe data to the frontend,
+        // but we'll include their active status and role.
+        List<Map<String, Object>> staffList = allStaff.stream().map(staff -> {
+            Map<String, Object> map = new HashMap<>();
+            map.put("id", staff.getId());
+            map.put("name", staff.getName());
+            map.put("email", staff.getEmail());
+            map.put("role", staff.getRole().name());
+            map.put("isActive", staff.isActive());
+            return map;
+        }).collect(Collectors.toList());
+
+        return ResponseEntity.ok(staffList);
+    }
+
+    // 2. Toggle Block/Unblock Status
+    @Transactional
+    @PutMapping("/staff/{id}/toggle-status")
+    public ResponseEntity<?> toggleStaffStatus(@PathVariable Long id) {
+        User staff = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Staff not found"));
+
+        // Flip the status (if true, becomes false. If false, becomes true)
+        staff.setActive(!staff.isActive());
+        userRepository.save(staff);
+
+        return ResponseEntity.ok(Map.of("message", "Status updated successfully", "isActive", staff.isActive()));
+    }
+
+    // 3. Delete Staff completely
+    @Transactional
+    @DeleteMapping("/staff/{id}")
+    public ResponseEntity<?> deleteStaff(@PathVariable Long id) {
+        User staff = userRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Staff not found"));
+
+        // Crucial: We must remove them from any teams first to avoid Database Foreign Key crashes!
+        if (staff.getRole() == Role.AGENT) {
+            List<Team> allTeams = teamRepository.findAll();
+            for (Team team : allTeams) {
+                if (team.getAgents().contains(staff)) {
+                    team.getAgents().remove(staff);
+                    teamRepository.save(team);
+                }
+            }
+        }
+
+        userRepository.delete(staff);
+        return ResponseEntity.ok(Map.of("message", "Staff member deleted successfully"));
+    }
+
+    // 4. Remove Agent from a Team (for reassignment)
+    @Transactional
+    @DeleteMapping("/teams/{teamId}/agents/{agentId}")
+    public ResponseEntity<?> removeAgentFromTeam(@PathVariable Long teamId, @PathVariable Long agentId) {
+        Team team = teamRepository.findById(teamId)
+                .orElseThrow(() -> new RuntimeException("Team not found"));
+        User agent = userRepository.findById(agentId)
+                .orElseThrow(() -> new RuntimeException("Agent not found"));
+
+        team.getAgents().remove(agent);
+        teamRepository.save(team);
+
+        return ResponseEntity.ok(Map.of("message", "Agent removed from team successfully"));
     }
 }
