@@ -100,4 +100,13 @@ public class TicketController {
     public ResponseEntity<List<TicketResponse>> getAgentTickets(Principal principal) {
         return ResponseEntity.ok(ticketService.getAgentTickets(principal.getName()));
     }
+
+    @PutMapping("/{id}/escalate")
+    @PreAuthorize("hasAnyRole('MANAGER', 'ADMIN')")
+    public ResponseEntity<TicketResponse> escalateTicket(
+            @PathVariable Long id,
+            @RequestParam Long agentId,
+            Principal principal) {
+        return ResponseEntity.ok(ticketService.escalateTicket(id, agentId, principal.getName()));
+    }
 }

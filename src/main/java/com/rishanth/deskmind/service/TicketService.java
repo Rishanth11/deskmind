@@ -23,4 +23,6 @@ public interface TicketService {
     TicketResponse updateStatus(Long ticketId, TicketStatus newStatus, String performedBy);
 
     List<TicketResponse> getAgentTickets(String agentEmail);
+
+    TicketResponse escalateTicket(Long ticketId, Long newAgentId, String managerEmail);
 }

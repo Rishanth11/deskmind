@@ -311,4 +311,31 @@ public class TicketServiceImpl implements TicketService {
                 .map(this::mapToResponse)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    @Transactional
+    public TicketResponse escalateTicket(Long ticketId, Long newAgentId, String managerEmail) {
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found"));
+
+        User newAgent = userRepository.findById(newAgentId)
+                .orElseThrow(() -> new RuntimeException("Agent not found"));
+
+        String oldAgentEmail = ticket.getAgent() != null ? ticket.getAgent().getEmail() : "Unassigned";
+
+        ticket.setAgent(newAgent);
+        ticket.setStatus(TicketStatus.IN_PROGRESS);
+        ticket.setUpdatedAt(LocalDateTime.now());
+        ticket = ticketRepository.save(ticket);
+
+        auditService.logAction(
+                "TICKET_ESCALATED",
+                "Ticket",
+                ticket.getId(),
+                managerEmail,
+                "Escalated from " + oldAgentEmail + " to " + newAgent.getEmail()
+        );
+
+        return mapToResponse(ticket);
+    }
 }
