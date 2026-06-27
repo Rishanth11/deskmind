@@ -129,4 +129,9 @@ public class AuthController {
 
         return ResponseEntity.ok("Password has been reset successfully.");
     }
+
+    @GetMapping("/health")
+    public ResponseEntity<String> health() {
+        return ResponseEntity.ok("OK");
+    }
 }
